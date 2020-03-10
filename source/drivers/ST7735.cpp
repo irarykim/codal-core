@@ -2,6 +2,8 @@
 #include "CodalFiber.h"
 #include "CodalDmesg.h"
 
+#include "CM300.h"
+
 #define SWAP 0
 
 #define assert(cond)                                                                               \
@@ -61,6 +63,9 @@
 #define MADCTL_RGB 0x00
 #define MADCTL_BGR 0x08
 #define MADCTL_MH 0x04
+
+#include "Serial.h"
+extern codal::Serial* debug_serial;
 
 namespace codal
 {
@@ -151,6 +156,7 @@ struct ST7735WorkBuffer
 
 void ST7735::sendBytes(unsigned num)
 {
+	//debug_serial->printf("\r\nsendBytes()");
     assert(num > 0);
     if (num > work->srcLeft)
         num = work->srcLeft;
@@ -183,6 +189,7 @@ void ST7735::sendBytes(unsigned num)
 
 void ST7735::sendWords(unsigned numBytes)
 {
+	//debug_serial->printf("\r\nsendWords() numBytes = %d, srcLeft = %d", numBytes, work->srcLeft);
     if (numBytes > work->srcLeft)
         numBytes = work->srcLeft & ~3;
     assert(numBytes > 0);
@@ -192,6 +199,7 @@ void ST7735::sendWords(unsigned numBytes)
     uint32_t *tbl = work->expPalette;
     uint32_t *dst = (uint32_t *)work->dataBuf;
 
+    //debug_serial->printf("\r\nnumWords = %d", numWords);
     if (double16)
         while (numWords--)
         {
@@ -218,13 +226,16 @@ void ST7735::sendWords(unsigned numBytes)
             *dst++ = (o >> 16) | (v << 8);
         }
 
+    //debug_serial->printf("\r\nsrc - work->srcPtr = %d", (uint32_t)src - (uint32_t)(work->srcPtr));
     work->srcPtr = (uint8_t *)src;
     startTransfer((uint8_t *)dst - work->dataBuf);
 }
 
 void ST7735::sendColorsStep(ST7735 *st)
 {
+	//debug_serial->printf("\r\nsendColorsStep()");
     ST7735WorkBuffer *work = st->work;
+	//static uint32_t srcPtrBackup = (uint32_t)(work->srcPtr);
 
     if (work->paletteTable)
     {
@@ -238,18 +249,19 @@ void ST7735::sendColorsStep(ST7735 *st)
             base[i + 32] = (palette[i] >> 10) & 0x3f;
             base[i + 32 + 64] = (palette[i] >> 2) & 0x3f;
         }
-        st->startRAMWR(0x2D);
+        st->startRAMWR(0x2D); // RGBSET need 128 bytes parameters
         st->io.send(work->dataBuf, 128);
         st->endCS();
     }
 
     if (work->x == 0)
     {
-        st->startRAMWR();
+        st->startRAMWR(); // 0x2C ST7735_RAMWR write screen data
         work->x++;
     }
 
     if (st->double16 && work->srcLeft == 0 && work->x++ < (work->width << 1))
+    //debug_serial->printf("\r\nwork->x = %d, srcPtr = %d", work->x, (uint32_t)(work->srcPtr) - srcPtrBackup);
     {
         work->srcLeft = (work->height + 1) >> 1;
         if ((work->x & 1) == 0)
@@ -281,17 +293,22 @@ void ST7735::sendColorsStep(ST7735 *st)
         if (st->double16)
             st->sendWords(sizeof(work->dataBuf) / 8);
         else
+        {
+        	//debug_serial->printf("\r\nsendWords sizeof(work->dataBuf) = %d, length = %d", sizeof(work->dataBuf), (sizeof(work->dataBuf) / (3 * 4)) * 4);
             st->sendWords((sizeof(work->dataBuf) / (3 * 4)) * 4);
+        }
     }
 }
 
 void ST7735::startTransfer(unsigned size)
 {
+	//debug_serial->printf("\r\nstartTransfer() size = %d", size);
     io.startSend(work->dataBuf, size, (PVoidCallback)&ST7735::sendColorsStep, this);
 }
 
 void ST7735::startRAMWR(int cmd)
 {
+	//debug_serial->printf("\r\nstartRAMWR()");
     if (cmd == 0)
         cmd = ST7735_RAMWR;
     cmdBuf[0] = cmd;
@@ -317,6 +334,7 @@ void ST7735::waitForSendDone()
 
 int ST7735::setSleep(bool sleepMode)
 {
+	//debug_serial->printf("\r\nsetSleep()");
     if (sleepMode == this->inSleepMode)
         return DEVICE_OK;
 
@@ -342,6 +360,7 @@ int ST7735::setSleep(bool sleepMode)
 
 int ST7735::sendIndexedImage(const uint8_t *src, unsigned width, unsigned height, uint32_t *palette)
 {
+	//debug_serial->printf("\r\nsendIndexedImage(), width = %d, height = %d", width, height);
     if (!work)
     {
         work = new ST7735WorkBuffer;
@@ -373,6 +392,7 @@ int ST7735::sendIndexedImage(const uint8_t *src, unsigned width, unsigned height
         work->srcLeft *= width;
     work->x = 0;
 
+    //debug_serial->printf("\r\nsrcLeft = %d", work->srcLeft);
     sendColorsStep(this);
 
     return DEVICE_OK;
@@ -381,6 +401,7 @@ int ST7735::sendIndexedImage(const uint8_t *src, unsigned width, unsigned height
 // we don't modify *buf, but it cannot be in flash, so no const as a hint
 void ST7735::sendCmd(uint8_t *buf, int len)
 {
+	//debug_serial->printf("\r\nsendCmd(%x)", buf[0]);
     // make sure cmd isn't on stack
     if (buf != cmdBuf)
         memcpy(cmdBuf, buf, len);
@@ -398,6 +419,7 @@ void ST7735::sendCmd(uint8_t *buf, int len)
 
 void ST7735::sendCmdSeq(const uint8_t *buf)
 {
+	//debug_serial->printf("\r\nsendCmdSeq()");
     while (*buf)
     {
         cmdBuf[0] = *buf++;
@@ -416,6 +438,7 @@ void ST7735::sendCmdSeq(const uint8_t *buf)
 
 void ST7735::setAddrWindow(int x, int y, int w, int h)
 {
+	//debug_serial->printf("\r\nsetAddrWindow()");
     int x2 = x + w - 1;
     int y2 = y + h - 1;
     uint8_t cmd0[] = {ST7735_RASET, (uint8_t)(x >> 8), (uint8_t)x, (uint8_t)(x2 >> 8), (uint8_t)x2};
@@ -426,6 +449,7 @@ void ST7735::setAddrWindow(int x, int y, int w, int h)
 
 int ST7735::init()
 {
+	//debug_serial->printf("\r\ninit() double = %d", double16);
     endCS();
     setData();
 
@@ -437,6 +461,7 @@ int ST7735::init()
 
 void ST7735::configure(uint8_t madctl, uint32_t frmctr1)
 {
+	//debug_serial->printf("\r\nconfigure()");
     uint8_t cmd0[] = {ST7735_MADCTL, madctl};
     uint8_t cmd1[] = {ST7735_FRMCTR1, (uint8_t)(frmctr1 >> 16), (uint8_t)(frmctr1 >> 8),
                       (uint8_t)frmctr1};
