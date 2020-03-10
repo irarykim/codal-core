@@ -260,10 +260,12 @@ void ST7735::sendColorsStep(ST7735 *st)
         work->x++;
     }
 
-    if (st->double16 && work->srcLeft == 0 && work->x++ < (work->width << 1))
     //debug_serial->printf("\r\nwork->x = %d, srcPtr = %d", work->x, (uint32_t)(work->srcPtr) - srcPtrBackup);
+    //if (st->double16 && work->srcLeft == 0 && work->x++ < (work->width << 1))
+    if (st->double16 && work->srcLeft == 0 && work->x++ < work->width)
     {
-        work->srcLeft = (work->height + 1) >> 1;
+        //work->srcLeft = (work->height + 1) >> 1;
+        work->srcLeft = (work->height + 1) >> 2;
         if ((work->x & 1) == 0)
         {
             work->srcPtr -= work->srcLeft;
@@ -386,7 +388,8 @@ int ST7735::sendIndexedImage(const uint8_t *src, unsigned width, unsigned height
     work->srcPtr = src;
     work->width = width;
     work->height = height;
-    work->srcLeft = (height + 1) >> 1;
+    //work->srcLeft = (height + 1) >> 1;
+    work->srcLeft = (height + 1) >> 2;
     // when not scaling up, we don't care about where lines end
     if (!double16)
         work->srcLeft *= width;
