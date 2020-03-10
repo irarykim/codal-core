@@ -73,6 +73,8 @@ protected:
 
     static void sendColorsStep(ST7735 *st);
 
+    void printCS(char c);
+
 public:
     ST7735(ScreenIO &io, Pin &cs, Pin &dc);
     virtual int init();

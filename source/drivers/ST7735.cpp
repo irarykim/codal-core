@@ -234,8 +234,9 @@ void ST7735::sendWords(unsigned numBytes)
 void ST7735::sendColorsStep(ST7735 *st)
 {
 	//debug_serial->printf("\r\nsendColorsStep()");
+  st->printCS('B');
     ST7735WorkBuffer *work = st->work;
-	//static uint32_t srcPtrBackup = (uint32_t)(work->srcPtr);
+	static uint32_t srcPtrBackup = (uint32_t)(work->srcPtr);
 
     if (work->paletteTable)
     {
@@ -259,8 +260,7 @@ void ST7735::sendColorsStep(ST7735 *st)
         st->startRAMWR(); // 0x2C ST7735_RAMWR write screen data
         work->x++;
     }
-
-    //debug_serial->printf("\r\nwork->x = %d, srcPtr = %d", work->x, (uint32_t)(work->srcPtr) - srcPtrBackup);
+    debug_serial->printf("\r\nwork->x = %d, srcLeft = %d, srcPtr = %d", work->x, work->srcLeft, (uint32_t)(work->srcPtr) - srcPtrBackup);
     //if (st->double16 && work->srcLeft == 0 && work->x++ < (work->width << 1))
     if (st->double16 && work->srcLeft == 0 && work->x++ < work->width)
     {
@@ -282,8 +282,11 @@ void ST7735::sendColorsStep(ST7735 *st)
     {
         if (work->srcLeft == 0)
         {
+            debug_serial->printf("\r\nD");
             st->endCS();
+            debug_serial->printf("\r\nE");
             Event(DEVICE_ID_DISPLAY, 100);
+            debug_serial->printf("\r\nF");
         }
         else
         {
@@ -306,6 +309,7 @@ void ST7735::startTransfer(unsigned size)
 {
 	//debug_serial->printf("\r\nstartTransfer() size = %d", size);
     io.startSend(work->dataBuf, size, (PVoidCallback)&ST7735::sendColorsStep, this);
+    this->printCS('A');
 }
 
 void ST7735::startRAMWR(int cmd)
@@ -472,6 +476,13 @@ void ST7735::configure(uint8_t madctl, uint32_t frmctr1)
         sendCmd(cmd0, sizeof(cmd0));
     if (frmctr1 != 0xffffff)
         sendCmd(cmd1, cmd1[3] == 0xff ? 3 : 4);
+}
+
+
+void ST7735::printCS(char c)
+{
+  //debug_serial->printf("\r\n%c: st = %X, &cs = %X, &cs->name = %X, *(&(cs->name)) = %d, cs = %d", c, this, cs, &(cs->name), *(&(cs->name)), cs->name);
+  debug_serial->printf("\r\n%c: &cs = %X, &cs->name = %X, *(&(cs->name)) = %d, cs = %d", c, cs, &(cs->name), *(&(cs->name)), cs->name);
 }
 
 } // namespace codal
