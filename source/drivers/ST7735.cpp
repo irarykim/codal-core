@@ -396,7 +396,7 @@ int ST7735::sendIndexedImage(const uint8_t *src, unsigned width, unsigned height
         work->srcLeft = (height + 1) >> 1;
     else
         work->srcLeft = (height + 1) >> 2;
-    // when not scaling up, we don't care about where lines end
+    // when not scaling up, we don't care about where lines end 
     if (!double16)
         work->srcLeft *= width;
     work->x = 0;
